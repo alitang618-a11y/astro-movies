@@ -1,8 +1,95 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import MovieList from './fragments/MovieList/index.astro';
+// src/pages/index.astro
+// 1. 核心逻辑：从 URL 获取当前语言参数（?lang=en 或 ?lang=zh）
+const { searchParams } = Astro.url;
+const currentLang = searchParams.get('lang') || 'zh'; // 默认是中文
+
+// 2. 你的 TMDB 密钥（直接读取你在 Vercel 填写的环境变量）
+const TMDB_API_KEY = import.meta.env.TMDB_API_KEY;
+
+let movies = [];
+let errorMsg = "";
+
+// 3. 自动化抓取数据
+if (TMDB_API_KEY) {
+  try {
+    const tmdbLang = currentLang === 'zh' ? 'zh-CN' : 'en-US';
+    const response = await fetch(
+      `https://api.themoviedb.org/3/movie/popular?api_key=${TMDB_API_KEY}&language=${tmdbLang}&page=1`
+    );
+    const data = await response.json();
+    if (data.results) {
+      movies = data.results;
+    } else {
+      errorMsg = "API Key 似乎不对，请检查 Vercel 环境变量。";
+    }
+  } catch (e) {
+    errorMsg = "网络连接失败，无法获取 TMDB 数据。";
+  }
+} else {
+  errorMsg = "未检测到 TMDB_API_KEY，请前往 Vercel 后台配置。";
+}
+
+// 4. 中英文固定文案字典
+const ui = {
+  zh: { title: "全球热门电影", desc: "极简多语言影视静态站", switchBtn: "English Version", switchUrl: "?lang=en", date: "上映时间：", score: "评分：" },
+  en: { title: "Popular Movies", desc: "Minimalist Multi-language Movie Site", switchBtn: "中文版", switchUrl: "?lang=zh", date: "Release: ", score: "Rating: " }
+};
+const t = ui[currentLang];
 ---
 
-<Layout title="Astro Movies">
-	<MovieList />
-</Layout>
+<html lang={currentLang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{t.title}</title>
+    <style>
+      /* 极简高级黑风格 CSS */
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #000; color: #fff; margin: 0; padding: 40px 20px; }
+      header { max-width: 1200px; margin: 0 auto 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; padding-bottom: 20px; }
+      h1 { margin: 0; font-size: 24px; font-weight: 600; }
+      .subtitle { color: #666; font-size: 14px; margin-top: 5px; }
+      .lang-btn { background: #fff; color: #000; padding: 8px 16px; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 14px; transition: 0.2s; }
+      .lang-btn:hover { background: #ccc; }
+      .error { background: #ff3333; color: #fff; padding: 15px; border-radius: 6px; max-width: 1200px; margin: 0 auto 20px; }
+      .movie-grid { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 30px; }
+      .movie-card { background: #111; border-radius: 8px; overflow: hidden; transition: transform 0.2s; border: 1px solid #222; }
+      .movie-card:hover { transform: translateY(-5px); border-color: #444; }
+      .movie-img { width: 100%; aspect-ratio: 2/3; object-fit: cover; background: #222; }
+      .movie-info { padding: 15px; }
+      .movie-title { font-size: 16px; font-weight: 600; margin: 0 0 10px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .movie-meta { font-size: 12px; color: #888; margin: 5px 0; }
+      .score { color: #ffb400; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>{t.title}</h1>
+        <div class="subtitle">{t.desc}</div>
+      </div>
+      <a href={t.switchUrl} class="lang-btn">{t.switchBtn}</a>
+    </header>
+
+    <main>
+      {errorMsg && <div class="error">{errorMsg}</div>}
+
+      <div class="movie-grid">
+        {movies.map((movie) => (
+          <div class="movie-card">
+            <img 
+              class="movie-img" 
+              src={movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Poster'} 
+              alt={movie.title} 
+            />
+            <div class="movie-info">
+              <h3 class="movie-title" title={movie.title}>{movie.title}</h3>
+              <div class="movie-meta">{t.date}{movie.release_date || 'N/A'}</div>
+              <div class="movie-meta">{t.score}<span class="score">⭐ {movie.vote_average?.toFixed(1) || '0.0'}</span></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </main>
+  </body>
+</html>
